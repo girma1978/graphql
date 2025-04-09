@@ -1,60 +1,45 @@
-import { Schema, model, Document } from 'mongoose';
 
-// Define an interface for the Thought document
-interface IComment extends Document {
-  commentText: string;
-  createdAt: Date;
+import { Schema, model, type Document } from 'mongoose';
+
+export interface BookDocument extends Document {
+  bookId: string;
+  title: string;
+  authors: string[];
+  description: string;
+  image: string;
+  link: string;
 }
 
-interface IThought extends Document {
-  thoughtText: string;
-  thoughtAuthor: string;
-  createdAt: Date;
-  comments: IComment[];
-}
-
-// Define the schema for the Comment subdocument
-const commentSchema = new Schema<IComment>(
-  {
-    commentText: {
+// Create the schema
+const bookSchema = new Schema<BookDocument>({
+  authors: [
+    {
       type: String,
-      required: true,
-      minlength: 1,
-      maxlength: 280,
     },
+  ],
+  description: {
+    type: String,
+    required: true,
   },
-  {
-    _id: false,
-    toJSON: { getters: true },
-    toObject: { getters: true },
-    timestamps: true,
-  }
-);
-
-// Define the schema for the Thought document
-const thoughtSchema = new Schema<IThought>(
-  {
-    thoughtText: {
-      type: String,
-      required: true,
-      minlength: 1,
-      maxlength: 280,
-      trim: true,
-    },
-    thoughtAuthor: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    comments: [commentSchema],
+  // saved book id from GoogleBooks
+  bookId: {
+    type: String,
+    required: true,
   },
-  {
-    timestamps: true,
-    toJSON: { getters: true },
-    toObject: { getters: true },
-  }
-);
+  image: {
+    type: String,
+  },
+  link: {
+    type: String,
+  },
+  title: {
+    type: String,
+    required: true,
+  },
+});
 
-const Thought = model<IThought>('Thought', thoughtSchema);
+// Create and export the model
+const Book = model<BookDocument>('Book', bookSchema);
 
-export default Thought;
+export { bookSchema };
+export default Book;

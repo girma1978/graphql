@@ -8,18 +8,15 @@
 
 // const cache = new InMemoryCache();
 
-// // Create the ApolloClient instance
 // const client = new ApolloClient({
 //   uri: '/graphql',
-//   cache
+//   cache,
 // });
 
 // const App = () => {
 //   return (
-//     // ApolloProvider should wrap your entire app
 //     <ApolloProvider client={client}>
-//       <Router>
-//         {/* Navbar should not have its own Router */}
+//       <Router> {/* Wrap the app in a single Router */}
 //         <Navbar />
 //         <Routes>
 //           <Route path="/" element={<SearchBooks />} />
@@ -33,23 +30,37 @@
 // export default App;
 
 
-import { ApolloClient, ApolloProvider, InMemoryCache } from '@apollo/client';
+import { ApolloClient, ApolloProvider, InMemoryCache, createHttpLink, ApolloLink } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SearchBooks from './pages/SearchBooks';
 import SavedBooks from './pages/SavedBooks';
+import Auth from './utils/auth'; // Ensure the path to your Auth utility is correct
 
-const cache = new InMemoryCache();
+const httpLink = createHttpLink({
+  uri: '/graphql',
+});
+
+const authLink = setContext((_, { headers }) => {
+  const token = Auth.getToken();
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : '',
+    },
+  };
+});
 
 const client = new ApolloClient({
-  uri: '/graphql',
-  cache,
+  link: ApolloLink.from([authLink, httpLink]), // Apply the authLink
+  cache: new InMemoryCache(),
 });
 
 const App = () => {
   return (
     <ApolloProvider client={client}>
-      <Router> {/* Wrap the app in a single Router */}
+      <Router>
         <Navbar />
         <Routes>
           <Route path="/" element={<SearchBooks />} />

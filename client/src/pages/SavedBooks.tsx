@@ -8,7 +8,17 @@ import { removeBookId } from '../utils/localStorage';
 import type { User } from '../models/User';
 
 const SavedBooks = () => {
-  // Check if user is logged in
+  // State for user data
+  const [userData, setUserData] = useState<User>({
+    username: '',
+    email: '',
+    password: '', // Including this since it's required in your User type
+    savedBooks: [],
+  });
+  // State for error messages
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Check if user is logged in and get the token
   const token = Auth.loggedIn() ? Auth.getToken() : null;
 
   // Redirect if not logged in
@@ -18,36 +28,45 @@ const SavedBooks = () => {
     }
   }, [token]);
 
+  // GraphQL query to get the logged-in user's data
   const { loading, error, data, refetch } = useQuery(GET_ME, {
-    // Skip query if not logged in
-    skip: !token,
-    // Fetch fresh data when component mounts
-    fetchPolicy: 'network-only'
+    skip: !token, // Skip the query if there's no token
+    fetchPolicy: 'network-only', // Always fetch fresh data from the server
   });
 
+  // GraphQL mutation to remove a book
   const [removeBook, { loading: removeLoading }] = useMutation(REMOVE_BOOK, {
-    // Refetch user data after removing a book
-    onCompleted: () => {
-      refetch();
-    }
+    onCompleted: (data) => {
+      // After successful removal, update the local state and refetch user data
+      if (data?.removeBook) {
+        // Ensure savedBooks is always an array
+        const updatedUser = {
+          ...data.removeBook,
+          savedBooks: data.removeBook.savedBooks || []
+        };
+        setUserData(updatedUser);
+        refetch(); // Re-run GET_ME to update the book list
+      }
+    },
+    onError: (err) => {
+      console.error('Error removing book:', err);
+      setErrorMessage('Failed to delete the book. Please try again.');
+    },
   });
 
-  const [userData, setUserData] = useState<User>({
-    username: '',
-    email: '',
-    password: '', // Including this since it's required in your User type
-    savedBooks: []
-  });
-
-  const [errorMessage, setErrorMessage] = useState('');
-
+  // Update local state when user data from the query arrives
   useEffect(() => {
-    if (data && data.me) {
-      setUserData(data.me);
+    if (data?.me) {
+      // Ensure savedBooks is always an array even if it's null from the server
+      const updatedUser = {
+        ...data.me,
+        savedBooks: data.me.savedBooks || []
+      };
+      setUserData(updatedUser);
     }
   }, [data]);
 
-  // Handle book deletion
+  // Function to handle deleting a book
   const handleDeleteBook = async (bookId: string) => {
     const token = Auth.loggedIn() ? Auth.getToken() : null;
 
@@ -57,23 +76,19 @@ const SavedBooks = () => {
 
     try {
       setErrorMessage('');
-      const { data } = await removeBook({
+      await removeBook({
         variables: { bookId },
       });
 
-      if (data) {
-        // Update local state with updated user data after deletion
-        setUserData(data.removeBook);
-        // Remove book's id from localStorage
-        removeBookId(bookId);
-      }
+      // Remove book's id from localStorage
+      removeBookId(bookId);
     } catch (err) {
       console.error(err);
-      setErrorMessage('Failed to delete the book. Please try again.');
+      // The useMutation's onError handler should already be setting the error message
     }
   };
 
-  // If loading or error
+  // Handle loading state
   if (loading) {
     return (
       <Container className="py-5 text-center">
@@ -85,6 +100,7 @@ const SavedBooks = () => {
     );
   }
 
+  // Handle error state
   if (error) {
     console.error(error);
     return (
@@ -95,6 +111,9 @@ const SavedBooks = () => {
       </Container>
     );
   }
+
+  // Get the savedBooks array (with null handling)
+  const savedBooks = userData.savedBooks || [];
 
   return (
     <>
@@ -109,25 +128,25 @@ const SavedBooks = () => {
       </div>
       <Container>
         {errorMessage && (
-          <Alert 
-            variant="danger" 
-            onClose={() => setErrorMessage('')} 
+          <Alert
+            variant="danger"
+            onClose={() => setErrorMessage('')}
             dismissible
             className="mt-3"
           >
             {errorMessage}
           </Alert>
         )}
-        
+
         <h2 className='pt-5'>
-          {userData.savedBooks && userData.savedBooks.length
-            ? `Viewing ${userData.savedBooks.length} saved ${
-                userData.savedBooks.length === 1 ? 'book' : 'books'
-              }:` 
+          {savedBooks.length
+            ? `Viewing ${savedBooks.length} saved ${
+                savedBooks.length === 1 ? 'book' : 'books'
+              }:`
             : 'You have no saved books!'}
         </h2>
         <Row>
-          {userData.savedBooks && userData.savedBooks.map((book) => (
+          {savedBooks.map((book) => (
             <Col md='4' key={book.bookId} className="mb-4">
               <Card border='dark' className="h-100">
                 {book.image ? (
@@ -143,8 +162,8 @@ const SavedBooks = () => {
                 <Card.Body className="d-flex flex-column">
                   <Card.Title>{book.title}</Card.Title>
                   <p className='small'>
-                    Authors: {Array.isArray(book.authors) 
-                      ? book.authors.join(', ') 
+                    Authors: {Array.isArray(book.authors)
+                      ? book.authors.join(', ')
                       : book.authors || 'Unknown'}
                   </p>
                   <Card.Text className="flex-grow-1">{book.description}</Card.Text>
